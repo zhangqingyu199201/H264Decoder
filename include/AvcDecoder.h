@@ -112,6 +112,51 @@ public:
     } vui_parameters_;
 };
 
+class PPS {
+public:
+    NALHeader header_;
+
+    int pic_parameter_set_id_;
+    int seq_parameter_set_id_;
+    int entropy_coding_mode_flag_;
+    int bottom_field_pic_order_in_frame_present_flag_;
+    int num_slice_groups_minus1_;
+
+
+    int slice_group_map_type_;
+    ::std::vector<int> run_length_minus1_;
+
+    ::std::vector<int> top_left_;
+    ::std::vector<int>  bottom_right_;
+    int  slice_group_change_direction_flag_;
+    int  slice_group_change_rate_minus1_;
+    int  pic_size_in_map_units_minus1_;
+
+    ::std::vector<int>   slice_group_id_;
+
+
+    int num_ref_idx_l0_active_minus1_;
+    int num_ref_idx_l1_active_minus1_;
+    int weighted_pred_flag_;
+
+    int weighted_bipred_idc_;
+    int     pic_init_qp_minus26_;
+    int     pic_init_qs_minus26_;
+
+    int chroma_qp_index_offset_;
+    int deblocking_filter_control_present_flag_;
+    int constrained_intra_pred_flag_;
+    int redundant_pic_cnt_present_flag_;
+    int transfrom_8X8_mode_flag_;
+    int pic_scaling_matrix_present_flag_;
+    ::std::vector<int> pic_scaling_list_present_flag_;
+
+    // scaling list
+    int second_chroma_qp_index_offset_;
+
+};
+
+
 class AvcDecoderConfigure {
 public:
     int version_;
@@ -123,13 +168,12 @@ public:
     ::std::vector<PPS *> pps_list_;
 
     ~AvcDecoderConfigure() {
-        /*
         for (auto it : sps_list_) {
             delete it;
         }
         for (auto it : pps_list_) {
             delete it;
-        }*/
+        }
     }
 };
 
@@ -139,6 +183,8 @@ public:
     void ParseFirstPacket(FlvTag *tag);
 
     SPS *ParseSps(BitReader &br);
+
+    PPS* ParsePps(BitReader& br);
 
     void ParseNalHeader(BitReader &br, NALHeader &header);
 };

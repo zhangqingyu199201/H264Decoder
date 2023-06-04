@@ -11,6 +11,13 @@ int ColumbDataUe(BitReader &br) {
     return code_num;
 }
 
+int ColumbDataSe(BitReader& br) {
+    int code_num = ColumbDataUe(br);
+
+    return ((code_num & 1) ? 1 : -1) *(code_num / 2);
+}
+
+
 void Hrd::Parse(BitReader &br) {
     cpb_cnt_minus1 = ColumbDataUe(br);
     bit_rate_scale = br.ReadBits(4);
@@ -34,11 +41,47 @@ void AvcDecoder::ParseNalHeader(BitReader &br, NALHeader &header) {
     header.unit_type_ = br.ReadBits(5);
 }
 
-SPS *AvcDecoder::ParseSps(BitReader &br) {
-    SPS *sps = new SPS();
+void DeleteCompeteCode(char* buff_ori, int len_ori, char* &buff_dst, int &len_dst ) {
+    if (buff_dst != nullptr) {
+        free(buff_dst);
+        buff_dst = nullptr;
+        len_dst = 0;
+    }
+    
+    char* buff_tmp = (char*)malloc(len_ori);
+    int len_tmp = 0;
 
-    int len = br.ReadBits(16);
+    for (int i = 0; i < len_ori; i++) {
+        if (buff_ori[i] == 3 && i >= 2 && buff_ori[i - 1] == 0 && buff_ori[i - 2] == 0) {
+            // skip this
+        }
+        else {
+            buff_tmp[len_tmp] = buff_ori[i];
+            len_tmp++;
+        }
+    }
 
+    buff_dst = (char*)malloc(len_tmp);
+    memcpy(buff_dst, buff_tmp, len_tmp);
+    len_dst = len_tmp;
+    free(buff_tmp);
+}
+
+
+SPS *AvcDecoder::ParseSps(BitReader &br_tmp) {
+    SPS* sps = new SPS();
+    int len = br_tmp.ReadBits(16);
+
+    char* buff_ori = br_tmp.buff_ + br_tmp.loc_;
+    int len_ori = br_tmp.buff_size_ - br_tmp.loc_ + 1;
+    char* buff_dst = nullptr;
+    int len_dst = 0;
+
+    DeleteCompeteCode(buff_ori, len_ori, buff_dst, len_dst);
+    br_tmp.ReadBits(len * 8);
+
+
+    BitReader br(buff_dst, len_dst);
     ParseNalHeader(br, sps->header_);
 
     sps->profile_idc_ = br.ReadBits(8);
@@ -80,12 +123,12 @@ SPS *AvcDecoder::ParseSps(BitReader &br) {
 
     } else if (sps->pic_order_cnt_type_ == 1) {
         sps->delta_pic_order_always_zero_flag_ = br.ReadOneBits();
-        sps->offset_for_non_ref_pic_ = ColumbDataUe(br);         //
-        sps->offset_for_top_to_bottom_field_ = ColumbDataUe(br); //
-        sps->num_ref_frames_in_pic_order_cnt_cycle_ = ColumbDataUe(br);
+        sps->offset_for_non_ref_pic_ = ColumbDataSe(br);         
+        sps->offset_for_top_to_bottom_field_ = ColumbDataSe(br); 
+        sps->num_ref_frames_in_pic_order_cnt_cycle_ = ColumbDataSe(br);
 
         for (int i = 0; i < sps->num_ref_frames_in_pic_order_cnt_cycle_; i++) {
-            sps->offset_for_ref_frame_.push_back(ColumbDataUe(br)); //
+            sps->offset_for_ref_frame_.push_back(ColumbDataSe(br));
         }
     }
 
@@ -172,7 +215,106 @@ SPS *AvcDecoder::ParseSps(BitReader &br) {
             sps->vui_parameters_.max_dec_frame_buffering = ColumbDataUe(br);
         }
     }
+
+    free(buff_dst);
+
+    return sps;
 }
+
+
+PPS* AvcDecoder::ParsePps(BitReader& br_tmp) {
+    PPS* pps = new PPS();
+    int len = br_tmp.ReadBits(16);
+
+    char* buff_ori = br_tmp.buff_ + br_tmp.loc_;
+    int len_ori = br_tmp.buff_size_ - br_tmp.loc_ + 1;
+    char* buff_dst = nullptr;
+    int len_dst = 0;
+
+    DeleteCompeteCode(buff_ori, len_ori, buff_dst, len_dst);
+    br_tmp.ReadBits(len * 8);
+
+
+    BitReader br(buff_dst, len_dst);
+    ParseNalHeader(br, pps->header_);
+
+
+    pps->pic_parameter_set_id_ = ColumbDataUe(br);
+    pps->seq_parameter_set_id_ = ColumbDataUe(br);
+    pps->entropy_coding_mode_flag_ = br.ReadBits(1);
+    pps->bottom_field_pic_order_in_frame_present_flag_ = br.ReadBits(1);
+    pps->num_slice_groups_minus1_ = ColumbDataUe(br);
+
+    if (pps->num_slice_groups_minus1_ > 0) {
+        pps->slice_group_map_type_ = ColumbDataUe(br);
+            
+        if (pps->slice_group_map_type_ == 0) {
+            for (int i = 0; i <= pps->num_slice_groups_minus1_; i++) {
+                pps->run_length_minus1_.push_back(ColumbDataUe(br));
+
+            }
+            
+
+        } else  if (pps->slice_group_map_type_ == 2) {
+            for (int i = 0; i <= pps->num_slice_groups_minus1_; i++) {
+                pps->top_left_.push_back(ColumbDataUe(br));
+                pps->bottom_right_.push_back(ColumbDataUe(br));
+
+            }
+
+
+        }
+        else  if ((pps->slice_group_map_type_ == 3)
+            || (pps->slice_group_map_type_ == 4)
+            || (pps->slice_group_map_type_ == 5)) {
+    pps->slice_group_change_direction_flag_ = br.ReadBits(1);
+    pps->slice_group_change_rate_minus1_ = ColumbDataUe(br);
+        }
+        else  if (pps->slice_group_map_type_ == 6) {
+            pps->pic_size_in_map_units_minus1_ = ColumbDataUe(br);
+            for (int i = 0; i <= pps->pic_size_in_map_units_minus1_; i++) {
+
+                pps->slice_group_id_.push_back(ColumbDataUe(br));
+
+            }
+        }
+
+    }
+
+  
+    pps->num_ref_idx_l0_active_minus1_ = ColumbDataUe(br);
+    pps->num_ref_idx_l1_active_minus1_ = ColumbDataUe(br);
+    pps->weighted_pred_flag_ = br.ReadBits(1);
+
+    pps->weighted_bipred_idc_ = br.ReadBits(2);
+    pps->pic_init_qp_minus26_ = ColumbDataSe(br); 
+    pps->pic_init_qs_minus26_ = ColumbDataSe(br); 
+
+    pps->chroma_qp_index_offset_ = ColumbDataSe(br); 
+    pps->deblocking_filter_control_present_flag_ = br.ReadBits(1);
+    pps->constrained_intra_pred_flag_ = br.ReadBits(1);
+    pps->redundant_pic_cnt_present_flag_ = br.ReadBits(1);
+
+    if (br.buff_size_ - br.loc_ + 1 > 0) {
+        pps->transfrom_8X8_mode_flag_ = br.ReadBits(1);
+        pps->pic_scaling_matrix_present_flag_ = br.ReadBits(1);
+
+        if (pps->pic_scaling_matrix_present_flag_) {
+            WAIT_TODO
+        }
+
+        pps->second_chroma_qp_index_offset_ = ColumbDataSe(br); 
+    }
+
+
+
+
+
+
+    free(buff_dst);
+    return pps;
+}
+
 
 void AvcDecoder::ParseFirstPacket(FlvTag *tag) {
     if (tag->tag_header_.video_tag_header->frame_type == 5) {
@@ -190,10 +332,14 @@ void AvcDecoder::ParseFirstPacket(FlvTag *tag) {
                 configure_.len_minus_one_ = br.ReadBits(2);
                 br.ReadBits(3);
                 int sps_size = br.ReadBits(5);
-
                 for (int i = 0; i < sps_size; i++) {
-                    ParseSps(br);
+                        configure_.sps_list_.push_back( ParseSps(br));
                 }
+                int pps_size = br.ReadBits(8);
+                for (int i = 0; i < pps_size; i++) {
+                    configure_.pps_list_.push_back(ParsePps(br));
+                }
+
 
             } else {
                 WAIT_TODO
