@@ -119,7 +119,7 @@ public:
     int pic_parameter_set_id_;
     int seq_parameter_set_id_;
     int entropy_coding_mode_flag_;
-    int bottom_field_pic_order_in_frame_present_flag_;
+    int pic_order_present_flag_;
     int num_slice_groups_minus1_;
 
 
@@ -185,6 +185,9 @@ public:
     SPS *ParseSps(BitReader &br);
 
     PPS* ParsePps(BitReader& br);
+
+    void ParseNormal(BitReader& br);
+
 
     void ParseNalHeader(BitReader &br, NALHeader &header);
 };
