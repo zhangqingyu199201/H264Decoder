@@ -23,11 +23,11 @@ int FlvScriptNode::ParseDataValue(unsigned char *buff, int len) {
         uint64_t r = (uint32_t)(buff[offset] << 24) | (buff[offset + 1] << 16) | (buff[offset + 2] << 8) | (buff[offset + 3]);
         offset += 4;
         uint64_t v = ((uint64_t)l << 32) | r;
-        value_.d_64 = *((double *)&v);
+        value_.d_64_ = *((double *)&v);
         break;
     }
     case 1: {
-        value_.b_8 = buff[offset];
+        value_.b_8_ = buff[offset];
         offset++;
         break;
     }
@@ -38,12 +38,12 @@ int FlvScriptNode::ParseDataValue(unsigned char *buff, int len) {
         memcpy(str, buff + offset, str_len);
         offset += str_len;
         str[str_len] = 0;
-        value_.str = ::std::string(str);
+        value_.str_ = ::std::string(str);
         free(str);
         break;
     }
     case 7: {
-        value_.i_16 = (buff[offset] << 8) | (buff[offset + 1]);
+        value_.i_16_ = (buff[offset] << 8) | (buff[offset + 1]);
         offset += 2;
         break;
     }
@@ -54,7 +54,7 @@ int FlvScriptNode::ParseDataValue(unsigned char *buff, int len) {
         memcpy(str, buff + offset, str_len);
         offset += str_len;
         str[str_len] = 0;
-        value_.str = ::std::string(str);
+        value_.str_ = ::std::string(str);
         free(str);
     }
     case 11: {
@@ -63,9 +63,9 @@ int FlvScriptNode::ParseDataValue(unsigned char *buff, int len) {
         uint64_t r = (uint32_t)(buff[offset] << 24) | (buff[offset + 1] << 16) | (buff[offset + 2] << 8) | (buff[offset + 3]);
         offset += 4;
         uint64_t v = ((uint64_t)l << 32) | r;
-        value_.time = *((double *)&v);
+        value_.time_ = *((double *)&v);
 
-        value_.i_16 = (buff[offset] << 8) | (buff[offset + 1]);
+        value_.i_16_ = (buff[offset] << 8) | (buff[offset + 1]);
         offset += 2;
         break;
     }
@@ -77,7 +77,7 @@ int FlvScriptNode::ParseDataValue(unsigned char *buff, int len) {
             FlvScriptNode *node = new FlvScriptNode();
             int offset_inner = node->ParseBody(buff + offset, len - offset);
             offset += offset_inner;
-            value_.obj.push_back(node);
+            value_.obj_.push_back(node);
         }
         break;
     }
@@ -89,7 +89,7 @@ int FlvScriptNode::ParseDataValue(unsigned char *buff, int len) {
             FlvScriptNode *node = new FlvScriptNode();
             int inner_offset = node->ParseDataValue(buff + offset, len - offset);
             offset += inner_offset;
-            value_.obj.push_back(node);
+            value_.obj_.push_back(node);
         }
 
         break;
@@ -108,7 +108,7 @@ int FlvScriptNode::ParseDataValue(unsigned char *buff, int len) {
             FlvScriptNode *node = new FlvScriptNode();
             int inner_offset = node->ParseBody(buff + offset, len - offset);
             offset += inner_offset;
-            value_.obj.push_back(node);
+            value_.obj_.push_back(node);
         }
 
         break;
@@ -147,44 +147,44 @@ void FlvDemuxer::ReadHeader() {
     MYASSERT(br_.ReadBits(8) == 'L');
     MYASSERT(br_.ReadBits(8) == 'V');
 
-    header_.version = br_.ReadBits(8);
+    header_.version_ = br_.ReadBits(8);
 
     MYASSERT(br_.ReadBits(5) == 0);
-    header_.has_audio = br_.ReadOneBits();
+    header_.has_audio_ = br_.ReadOneBits();
     MYASSERT(br_.ReadBits(1) == 0);
-    header_.has_video = br_.ReadOneBits();
-    header_.data_offset = br_.ReadBits(32);
+    header_.has_video_ = br_.ReadOneBits();
+    header_.data_offset_ = br_.ReadBits(32);
 }
 
 FlvTag *FlvDemuxer::ReadTag() {
     FlvTag *tag = new FlvTag();
-    tag->tag_header_.pre_tag_size = br_.ReadBits(32);
+    tag->tag_header_.pre_tag_size_ = br_.ReadBits(32);
     br_.ReadBits(2);
-    tag->tag_header_.is_filter = br_.ReadOneBits();
-    tag->tag_header_.type = br_.ReadBits(5);
-    tag->tag_header_.data_size = br_.ReadBits(24);
-    tag->tag_header_.timestamp = br_.ReadBits(24);
-    tag->tag_header_.timestamp_extended = br_.ReadBits(8);
-    tag->tag_header_.stream_id = br_.ReadBits(24);
+    tag->tag_header_.is_filter_ = br_.ReadOneBits();
+    tag->tag_header_.type_ = br_.ReadBits(5);
+    tag->tag_header_.data_size_ = br_.ReadBits(24);
+    tag->tag_header_.timestamp_ = br_.ReadBits(24);
+    tag->tag_header_.timestamp_extended_ = br_.ReadBits(8);
+    tag->tag_header_.stream_id_ = br_.ReadBits(24);
 
-    int data_size = tag->tag_header_.data_size;
-    if (tag->tag_header_.type == FlvTag::TAG_TYPE_AUDIO) {
+    int data_size = tag->tag_header_.data_size_;
+    if (tag->tag_header_.type_ == FlvTag::TAG_TYPE_AUDIO) {
         // read audio tag header
-    } else if (tag->tag_header_.type == FlvTag::TAG_TYPE_VIDEO) {
+    } else if (tag->tag_header_.type_ == FlvTag::TAG_TYPE_VIDEO) {
         // read video tag header
-        tag->tag_header_.video_tag_header = (FlvTag::VideoTagHeader *)malloc(sizeof(FlvTag::VideoTagHeader));
+        tag->tag_header_.video_tag_header_ = (FlvTag::VideoTagHeader *)malloc(sizeof(FlvTag::VideoTagHeader));
 
-        tag->tag_header_.video_tag_header->frame_type = br_.ReadBits(4);
-        tag->tag_header_.video_tag_header->codec_id = br_.ReadBits(4);
+        tag->tag_header_.video_tag_header_->frame_type_ = br_.ReadBits(4);
+        tag->tag_header_.video_tag_header_->codec_id_ = br_.ReadBits(4);
         data_size--;
-        if (tag->tag_header_.video_tag_header->codec_id == 7) {
-            tag->tag_header_.video_tag_header->packet_type = br_.ReadBits(8);
-            tag->tag_header_.video_tag_header->composition_time = br_.ReadBits(24);
+        if (tag->tag_header_.video_tag_header_->codec_id_ == 7) {
+            tag->tag_header_.video_tag_header_->packet_type_ = br_.ReadBits(8);
+            tag->tag_header_.video_tag_header_->composition_time_ = br_.ReadBits(24);
             data_size -= 4;
         }
     }
 
-    if (tag->tag_header_.is_filter) {
+    if (tag->tag_header_.is_filter_) {
         // read encryption header
         // read filter param
     }
@@ -194,7 +194,7 @@ FlvTag *FlvDemuxer::ReadTag() {
     tag->data_ = (unsigned char *)malloc(data_size);
     br_.ReadBuffer((char *)(tag->data_), data_size);
 
-    if (tag->tag_header_.type == FlvTag::TAG_TYPE_SCRIPT) {
+    if (tag->tag_header_.type_ == FlvTag::TAG_TYPE_SCRIPT) {
         script_.ParseHead(tag->data_, tag->data_size_);
     }
     return tag;
@@ -206,19 +206,19 @@ void FlvDemuxerTest::Test() {
     FlvDemuxer flv(::std::string(MOVIE_PATH));
     flv.ReadHeader();
 
-    MYASSERT(flv.header_.has_audio == 0);
-    MYASSERT(flv.header_.has_video == 1);
-    MYASSERT(flv.header_.version == 1);
-    MYASSERT(flv.header_.data_offset == 9);
+    MYASSERT(flv.header_.has_audio_ == 0);
+    MYASSERT(flv.header_.has_video_ == 1);
+    MYASSERT(flv.header_.version_ == 1);
+    MYASSERT(flv.header_.data_offset_ == 9);
 
     FlvTag *tag_script = flv.ReadTag();
     FlvTag *tag_video_0 = flv.ReadTag();
     FlvTag *tag_video_1 = flv.ReadTag();
     FlvTag *tag_video_2 = flv.ReadTag();
-    MYASSERT(tag_script->tag_header_.data_size == 313);
-    MYASSERT(tag_video_0->tag_header_.data_size == 52);
-    MYASSERT(tag_video_1->tag_header_.data_size == 63213);
-    MYASSERT(tag_video_2->tag_header_.data_size == 29786);
+    MYASSERT(tag_script->tag_header_.data_size_ == 313);
+    MYASSERT(tag_video_0->tag_header_.data_size_ == 52);
+    MYASSERT(tag_video_1->tag_header_.data_size_ == 63213);
+    MYASSERT(tag_video_2->tag_header_.data_size_ == 29786);
 
     END_TEST
 }
